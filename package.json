@@ -1,0 +1,21 @@
+{
+  "name": "opencode-zellij-status",
+  "version": "0.1.0",
+  "description": "OpenCode status and notification events for Zellij via zjstatus",
+  "main": "opencode-plugin/index.ts",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "zellij",
+    "zjstatus",
+    "terminal"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/talldan/opencode-zellij-status.git"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": "*"
+  }
+}
