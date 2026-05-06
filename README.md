@@ -48,7 +48,7 @@ The Nerd Font preset is:
 
 | State | Marker |
 | --- | --- |
-| idle/default | `󰄬` |
+| idle/default | `󰸞` |
 | busy | `󰔟` |
 | retry | `` |
 | waiting/question | `` |
@@ -57,7 +57,7 @@ The Nerd Font preset is:
 Override individual markers with:
 
 ```sh
-OPENCODE_ZELLIJ_STATUS_IDLE="󰄬"
+OPENCODE_ZELLIJ_STATUS_IDLE="󰸞"
 OPENCODE_ZELLIJ_STATUS_BUSY="󰔟"
 OPENCODE_ZELLIJ_STATUS_RETRY=""
 OPENCODE_ZELLIJ_STATUS_WAITING=""

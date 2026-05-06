@@ -19,7 +19,7 @@ const DEFAULT_STATUS_MARKERS: StatusMarkers = {
 }
 
 const NERD_STATUS_MARKERS: StatusMarkers = {
-  idle: "󰄬",
+  idle: "󰸞",
   busy: "󰔟",
   retry: "",
   waiting: "",
