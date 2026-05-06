@@ -51,8 +51,8 @@ The Nerd Font preset is:
 | idle/default | `󰄬` |
 | busy | `󰔟` |
 | retry | `` |
-| waiting/question | `󰘥` |
-| error | `󰅚` |
+| waiting/question | `` |
+| error | `󰛉` |
 
 Override individual markers with:
 
@@ -60,8 +60,8 @@ Override individual markers with:
 OPENCODE_ZELLIJ_STATUS_IDLE="󰄬"
 OPENCODE_ZELLIJ_STATUS_BUSY="󰔟"
 OPENCODE_ZELLIJ_STATUS_RETRY=""
-OPENCODE_ZELLIJ_STATUS_WAITING="󰘥"
-OPENCODE_ZELLIJ_STATUS_ERROR="󰅚"
+OPENCODE_ZELLIJ_STATUS_WAITING=""
+OPENCODE_ZELLIJ_STATUS_ERROR="󰛉"
 ```
 
 Per-marker overrides win over the preset. The plugin strips both default and Nerd Font markers from the current tab name before storing the base name, so switching styles does not permanently bake the old marker into the tab name.

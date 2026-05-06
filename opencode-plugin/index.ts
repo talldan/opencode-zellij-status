@@ -22,8 +22,8 @@ const NERD_STATUS_MARKERS: StatusMarkers = {
   idle: "󰄬",
   busy: "󰔟",
   retry: "",
-  waiting: "󰘥",
-  error: "󰅚",
+  waiting: "",
+  error: "󰛉",
 }
 
 interface ZellijPaneInfo {
