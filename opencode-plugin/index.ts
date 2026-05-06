@@ -151,7 +151,10 @@ const retryMessage = (event: { properties?: unknown }): string => {
   return clean(attempt ? `Retrying (${attempt}): ${message}` : message)
 }
 
-const idleMessage = (): string => clean("OpenCode idle")
+const idleMessage = (): string => clean("task complete")
+
+const withTabName = (tabName: string | undefined, message: string): string =>
+  clean(tabName ? `${tabName}: ${message}` : message)
 
 const sessionStatusType = (event: { properties?: unknown }): string | undefined => {
   const properties = event.properties as { status?: { type?: string } } | undefined
@@ -178,17 +181,18 @@ export const ZellijStatusPlugin: Plugin = async ({ $ }) => {
     return { id, name }
   }
 
-  const renameCurrentTab = async (suffix: string): Promise<void> => {
+  const renameCurrentTab = async (suffix: string): Promise<string | undefined> => {
     const tab = await currentTab()
-    if (!tab) return
+    if (!tab) return undefined
 
     const baseName = baseTabNames.get(tab.id) ?? stripStatusSuffix(tab.name, markers)
     baseTabNames.set(tab.id, baseName)
 
     const nextName = tabNameWithSuffix(baseName, suffix)
-    if (tab.name === nextName) return
+    if (tab.name === nextName) return baseName
 
     await $`zellij action rename-tab-by-id ${tab.id} ${nextName}`.quiet().nothrow()
+    return baseName
   }
 
   const notifyDesktop = async (message: string): Promise<void> => {
@@ -209,27 +213,23 @@ export const ZellijStatusPlugin: Plugin = async ({ $ }) => {
             await renameCurrentTab(markers.busy)
           } else if (status === "idle") {
             await renameCurrentTab(markers.idle)
-            await notifyDesktop(idleMessage())
           } else if (status === "retry") {
-            await renameCurrentTab(markers.retry)
-            await notifyDesktop(retryMessage(event))
+            const tabName = await renameCurrentTab(markers.retry)
+            await notifyDesktop(withTabName(tabName, retryMessage(event)))
           }
           break
         }
 
         case "session.idle":
-          await renameCurrentTab(markers.idle)
-          await notifyDesktop(idleMessage())
+          await notifyDesktop(withTabName(await renameCurrentTab(markers.idle), idleMessage()))
           break
 
         case "session.error":
-          await renameCurrentTab(markers.error)
-          await notifyDesktop(errorMessage(event))
+          await notifyDesktop(withTabName(await renameCurrentTab(markers.error), errorMessage(event)))
           break
 
         case "permission.asked":
-          await renameCurrentTab(markers.waiting)
-          await notifyDesktop(permissionMessage(event))
+          await notifyDesktop(withTabName(await renameCurrentTab(markers.waiting), permissionMessage(event)))
           break
 
         case "permission.replied":
@@ -237,8 +237,7 @@ export const ZellijStatusPlugin: Plugin = async ({ $ }) => {
           break
 
         case "question.asked":
-          await renameCurrentTab(markers.waiting)
-          await notifyDesktop(questionMessage(event))
+          await notifyDesktop(withTabName(await renameCurrentTab(markers.waiting), questionMessage(event)))
           break
       }
     },
