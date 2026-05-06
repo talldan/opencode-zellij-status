@@ -2,7 +2,7 @@
 
 Small OpenCode plugin that shows OpenCode status on the current Zellij tab and optionally sends macOS desktop notifications for attention-worthy events.
 
-The plugin listens for OpenCode session, permission, and question events. It renames the current Zellij tab with a small status suffix, then restores the original tab name when OpenCode returns to idle or the attention state is resolved.
+The plugin listens for OpenCode session, permission, and question events. It renames the current Zellij tab with a small status suffix, using an idle marker so the tab label width stays stable as status changes.
 
 ## Install
 
@@ -20,20 +20,53 @@ If Zellij tab lookup or tab rename fails, the plugin no-ops silently so it does 
 
 ## Behavior
 
-The first version intentionally keeps the mapping small and quiet:
+The first version intentionally keeps the mapping small and quiet. These are the default portable markers:
 
 | OpenCode event | Tab suffix | Notification |
 | --- | --- | --- |
+| idle/default | `✓` | No |
 | `session.status` busy | `●` | No |
 | `session.status` retry | `…` | macOS only, if enabled |
-| `session.status` idle | clear suffix | No |
-| `session.idle` | clear suffix | No |
+| `session.status` idle | `✓` | No |
+| `session.idle` | `✓` | No |
 | `session.error` | `!` | macOS only, if enabled |
 | `permission.asked` | `?` | macOS only, if enabled |
-| `permission.replied` | clear suffix | No |
+| `permission.replied` | `✓` | No |
 | `question.asked` | `?` | macOS only, if enabled |
 
-On the first handled event, the plugin reads the current tab name from Zellij, strips any known status suffix (`●`, `…`, `?`, `!`), and stores that base tab name in memory. Clearing status renames the tab back to that stored base name.
+On the first handled event, the plugin reads the current tab name from Zellij, strips any known status suffix (`✓`, `●`, `…`, `?`, `!`), and stores that base tab name in memory. Idle status renames the tab back to that stored base name plus `✓`.
+
+## Status Markers
+
+Use a Nerd Font marker preset with:
+
+```sh
+OPENCODE_ZELLIJ_STATUS_STYLE=nerd
+```
+
+The Nerd Font preset is:
+
+| State | Marker |
+| --- | --- |
+| idle/default | `󰄬` |
+| busy | `󰔟` |
+| retry | `` |
+| waiting/question | `󰘥` |
+| error | `󰅚` |
+
+Override individual markers with:
+
+```sh
+OPENCODE_ZELLIJ_STATUS_IDLE="󰄬"
+OPENCODE_ZELLIJ_STATUS_BUSY="󰔟"
+OPENCODE_ZELLIJ_STATUS_RETRY=""
+OPENCODE_ZELLIJ_STATUS_WAITING="󰘥"
+OPENCODE_ZELLIJ_STATUS_ERROR="󰅚"
+```
+
+Per-marker overrides win over the preset. The plugin strips both default and Nerd Font markers from the current tab name before storing the base name, so switching styles does not permanently bake the old marker into the tab name.
+
+Zellij tab names are plain text, so this plugin cannot make one marker glyph larger than the rest of the tab label. Marker size comes from your terminal font, font fallback, and any `zjstatus` tab styling. Use `zjstatus` colors, bold text, backgrounds, or a wider custom marker if you want the status to stand out more.
 
 ## Desktop Notifications
 

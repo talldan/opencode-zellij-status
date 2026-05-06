@@ -1,9 +1,30 @@
 import type { Plugin } from "@opencode-ai/plugin"
 
 const MAX_MESSAGE_LENGTH = 160
-const STATUS_SUFFIXES = ["●", "…", "?", "!"] as const
 
-type StatusSuffix = (typeof STATUS_SUFFIXES)[number]
+interface StatusMarkers {
+  idle: string
+  busy: string
+  retry: string
+  waiting: string
+  error: string
+}
+
+const DEFAULT_STATUS_MARKERS: StatusMarkers = {
+  idle: "✓",
+  busy: "●",
+  retry: "…",
+  waiting: "?",
+  error: "!",
+}
+
+const NERD_STATUS_MARKERS: StatusMarkers = {
+  idle: "󰄬",
+  busy: "󰔟",
+  retry: "",
+  waiting: "󰘥",
+  error: "󰅚",
+}
 
 interface ZellijPaneInfo {
   pane_id?: string | number
@@ -33,12 +54,43 @@ const clean = (value: string): string =>
 
 const applescriptString = (value: string): string => clean(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')
 
-const stripStatusSuffix = (name: string): string => {
-  const pattern = new RegExp(`\\s*[${STATUS_SUFFIXES.join("")}]\\s*$`, "u")
+const markerOverride = (envName: string, fallback: string): string => {
+  const value = process.env[envName]
+  return value ? clean(value) || fallback : fallback
+}
+
+const statusMarkers = (): StatusMarkers => {
+  const preset = process.env.OPENCODE_ZELLIJ_STATUS_STYLE === "nerd"
+    ? NERD_STATUS_MARKERS
+    : DEFAULT_STATUS_MARKERS
+
+  return {
+    idle: markerOverride("OPENCODE_ZELLIJ_STATUS_IDLE", preset.idle),
+    busy: markerOverride("OPENCODE_ZELLIJ_STATUS_BUSY", preset.busy),
+    retry: markerOverride("OPENCODE_ZELLIJ_STATUS_RETRY", preset.retry),
+    waiting: markerOverride("OPENCODE_ZELLIJ_STATUS_WAITING", preset.waiting),
+    error: markerOverride("OPENCODE_ZELLIJ_STATUS_ERROR", preset.error),
+  }
+}
+
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
+const suffixesToStrip = (markers: StatusMarkers): string[] =>
+  Array.from(new Set([
+    ...Object.values(DEFAULT_STATUS_MARKERS),
+    ...Object.values(NERD_STATUS_MARKERS),
+    ...Object.values(markers),
+  ]))
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)
+
+const stripStatusSuffix = (name: string, markers: StatusMarkers): string => {
+  const suffixPattern = suffixesToStrip(markers).map(escapeRegExp).join("|")
+  const pattern = new RegExp(`\\s*(?:${suffixPattern})\\s*$`, "u")
   return name.replace(pattern, "").trimEnd() || "OpenCode"
 }
 
-const tabNameWithSuffix = (baseName: string, suffix: StatusSuffix): string =>
+const tabNameWithSuffix = (baseName: string, suffix: string): string =>
   clean(`${baseName} ${suffix}`)
 
 const paneID = (pane: ZellijPaneInfo): string | undefined => {
@@ -105,6 +157,8 @@ const sessionStatusType = (event: { properties?: unknown }): string | undefined 
 }
 
 export const ZellijStatusPlugin: Plugin = async ({ $ }) => {
+  const markers = statusMarkers()
+
   const currentTab = async (): Promise<CurrentTabInfo | undefined> => {
     const currentPaneID = process.env.ZELLIJ_PANE_ID
     if (!currentPaneID) return undefined
@@ -122,14 +176,14 @@ export const ZellijStatusPlugin: Plugin = async ({ $ }) => {
     return { id, name }
   }
 
-  const renameCurrentTab = async (suffix?: StatusSuffix): Promise<void> => {
+  const renameCurrentTab = async (suffix: string): Promise<void> => {
     const tab = await currentTab()
     if (!tab) return
 
-    const baseName = baseTabNames.get(tab.id) ?? stripStatusSuffix(tab.name)
+    const baseName = baseTabNames.get(tab.id) ?? stripStatusSuffix(tab.name, markers)
     baseTabNames.set(tab.id, baseName)
 
-    const nextName = suffix ? tabNameWithSuffix(baseName, suffix) : baseName
+    const nextName = tabNameWithSuffix(baseName, suffix)
     if (tab.name === nextName) return
 
     await $`zellij action rename-tab-by-id ${tab.id} ${nextName}`.quiet().nothrow()
@@ -150,36 +204,36 @@ export const ZellijStatusPlugin: Plugin = async ({ $ }) => {
         case "session.status": {
           const status = sessionStatusType(event)
           if (status === "busy") {
-            await renameCurrentTab("●")
+            await renameCurrentTab(markers.busy)
           } else if (status === "idle") {
-            await renameCurrentTab()
+            await renameCurrentTab(markers.idle)
           } else if (status === "retry") {
-            await renameCurrentTab("…")
+            await renameCurrentTab(markers.retry)
             await notifyDesktop(retryMessage(event))
           }
           break
         }
 
         case "session.idle":
-          await renameCurrentTab()
+          await renameCurrentTab(markers.idle)
           break
 
         case "session.error":
-          await renameCurrentTab("!")
+          await renameCurrentTab(markers.error)
           await notifyDesktop(errorMessage(event))
           break
 
         case "permission.asked":
-          await renameCurrentTab("?")
+          await renameCurrentTab(markers.waiting)
           await notifyDesktop(permissionMessage(event))
           break
 
         case "permission.replied":
-          await renameCurrentTab()
+          await renameCurrentTab(markers.idle)
           break
 
         case "question.asked":
-          await renameCurrentTab("?")
+          await renameCurrentTab(markers.waiting)
           await notifyDesktop(questionMessage(event))
           break
       }
