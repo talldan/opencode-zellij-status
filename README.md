@@ -27,8 +27,8 @@ The first version intentionally keeps the mapping small and quiet. These are the
 | idle/default | `✓` | No |
 | `session.status` busy | `●` | No |
 | `session.status` retry | `…` | macOS only, if enabled |
-| `session.status` idle | `✓` | No |
-| `session.idle` | `✓` | No |
+| `session.status` idle | `✓` | macOS only, if enabled |
+| `session.idle` | `✓` | macOS only, if enabled |
 | `session.error` | `!` | macOS only, if enabled |
 | `permission.asked` | `?` | macOS only, if enabled |
 | `permission.replied` | `✓` | No |
@@ -82,7 +82,7 @@ When enabled, attention-worthy events run:
 osascript -e 'display notification ... with title "OpenCode"'
 ```
 
-Notifications are only sent for retry, error, permission, and question events. Idle/done events do not send notifications.
+Notifications are only sent for idle/done, retry, error, permission, and question events.
 
 ## Zellij Details
 

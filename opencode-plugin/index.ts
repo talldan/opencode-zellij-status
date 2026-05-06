@@ -151,6 +151,8 @@ const retryMessage = (event: { properties?: unknown }): string => {
   return clean(attempt ? `Retrying (${attempt}): ${message}` : message)
 }
 
+const idleMessage = (): string => clean("OpenCode idle")
+
 const sessionStatusType = (event: { properties?: unknown }): string | undefined => {
   const properties = event.properties as { status?: { type?: string } } | undefined
   return properties?.status?.type
@@ -207,6 +209,7 @@ export const ZellijStatusPlugin: Plugin = async ({ $ }) => {
             await renameCurrentTab(markers.busy)
           } else if (status === "idle") {
             await renameCurrentTab(markers.idle)
+            await notifyDesktop(idleMessage())
           } else if (status === "retry") {
             await renameCurrentTab(markers.retry)
             await notifyDesktop(retryMessage(event))
@@ -216,6 +219,7 @@ export const ZellijStatusPlugin: Plugin = async ({ $ }) => {
 
         case "session.idle":
           await renameCurrentTab(markers.idle)
+          await notifyDesktop(idleMessage())
           break
 
         case "session.error":
