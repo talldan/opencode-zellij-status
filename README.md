@@ -20,19 +20,27 @@ The plugin only sends Zellij pipe messages when running inside Zellij, detected 
 
 ## zjstatus
 
-Add a pipe block for OpenCode status and include notifications in your `zjstatus` format. A minimal example:
+Add this to a Zellij layout, such as `~/.config/zellij/layouts/default.kdl`. The `children` line keeps normal panes in the tab and adds `zjstatus` as a one-line borderless pane:
 
 ```kdl
-plugins {
-    zjstatus {
-        format_left " {pipe_opencode}"
-        format_right "{notifications}"
+layout {
+    default_tab_template {
+        children
+        pane size=1 borderless=true {
+            plugin location="https://github.com/dj95/zjstatus/releases/latest/download/zjstatus.wasm" {
+                format_left "{pipe_opencode}"
+                format_right "{notifications}"
 
-        pipe_opencode_format " {payload} "
-        notification_format " {message} "
+                pipe_opencode_format " {output} "
+                notification_format_unread " {message} "
+                notification_show_interval "10"
+            }
+        }
     }
 }
 ```
+
+If you already use `zjstatus`, add `{pipe_opencode}` and `{notifications}` to your existing format, then add the corresponding `pipe_opencode_*` and `notification_*` options.
 
 Status updates use the `pipe_opencode` pipe name:
 
