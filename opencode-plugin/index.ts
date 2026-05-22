@@ -93,6 +93,9 @@ const stripStatusSuffix = (name: string, markers: StatusMarkers): string => {
 const tabNameWithSuffix = (baseName: string, suffix: string): string =>
   clean(`${baseName} ${suffix}`)
 
+const tabCacheKey = (tabID: string): string =>
+  `${process.env.ZELLIJ_SESSION_NAME ?? "unknown"}:${tabID}`
+
 const paneID = (pane: ZellijPaneInfo): string | undefined => {
   const value = pane.pane_id ?? pane.paneId ?? pane.id
   return value === undefined ? undefined : String(value)
@@ -185,8 +188,11 @@ export const ZellijStatusPlugin: Plugin = async ({ $ }) => {
     const tab = await currentTab()
     if (!tab) return undefined
 
-    const baseName = baseTabNames.get(tab.id) ?? stripStatusSuffix(tab.name, markers)
-    baseTabNames.set(tab.id, baseName)
+    const currentBaseName = stripStatusSuffix(tab.name, markers)
+    const cacheKey = tabCacheKey(tab.id)
+    const cachedBaseName = baseTabNames.get(cacheKey)
+    const baseName = cachedBaseName === currentBaseName ? cachedBaseName : currentBaseName
+    baseTabNames.set(cacheKey, baseName)
 
     const nextName = tabNameWithSuffix(baseName, suffix)
     if (tab.name === nextName) return baseName

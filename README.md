@@ -34,7 +34,7 @@ The first version intentionally keeps the mapping small and quiet. These are the
 | `permission.replied` | `✓` | No |
 | `question.asked` | `?` | macOS only, if enabled |
 
-On the first handled event, the plugin reads the current tab name from Zellij, strips any known status suffix (`✓`, `●`, `…`, `?`, `!`), and stores that base tab name in memory. Idle status renames the tab back to that stored base name plus `✓`.
+On each handled event, the plugin reads the current tab name from Zellij, strips any known status suffix (`✓`, `●`, `…`, `?`, `!`), and stores that base tab name in memory using the current Zellij session and tab ID. If the stripped tab name changes, for example after `sesh here` or a manual tab rename, the plugin treats the new name as authoritative. Idle status renames the tab back to that stored base name plus `✓`.
 
 ## Status Markers
 
