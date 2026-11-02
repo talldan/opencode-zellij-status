@@ -2,7 +2,7 @@
 
 Small OpenCode V2 plugin that shows OpenCode status on the current Zellij tab and optionally sends macOS desktop notifications for attention-worthy events.
 
-**Compatibility:** OpenCode V2 only. This plugin uses the V2 plugin API and does not support OpenCode V1.
+**Compatibility:** OpenCode V2 only. This plugin uses the V2 plugin API and does not support OpenCode V1. Its Zellij and notification handlers run in the TUI client, where they can access the active terminal's environment.
 
 The plugin listens for OpenCode session, permission, and form events (including agent questions). It renames the current Zellij tab with a small status suffix, using an idle marker so the tab label width stays stable as status changes.
 
@@ -16,6 +16,8 @@ Add the plugin to your OpenCode config:
   "plugins": ["opencode-zellij-status"]
 }
 ```
+
+The package includes a minimal server part so OpenCode loads its TUI part from this `plugins` entry. Zellij actions and events run locally in the TUI client; no separate `cli.json` entry is needed.
 
 The plugin only acts when running inside Zellij, detected through `ZELLIJ` or `ZELLIJ_SESSION_NAME`. It also uses `ZELLIJ_PANE_ID` to find the tab containing the current OpenCode pane.
 
@@ -78,11 +80,21 @@ macOS desktop notifications are disabled by default. Enable them with:
 OPENCODE_ZELLIJ_NOTIFY_DESKTOP=1
 ```
 
-When enabled, attention-worthy events run:
+Alternatively, enable them through the plugin options in `opencode.json` by replacing the package string in the `plugins` array with this object:
 
-```sh
-osascript -e 'display notification ... with title "OpenCode"'
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    {
+      "package": "opencode-zellij-status",
+      "options": { "desktopNotifications": true }
+    }
+  ]
+}
 ```
+
+When enabled, attention-worthy events use OpenCode's TUI attention API to send a macOS desktop notification. The environment variable must be available to the TUI process; plugin options work independently of the server environment.
 
 Notifications are only sent for `session.idle`, retry, error, permission, and question events. When the current Zellij tab can be resolved, the notification body is prefixed with the base tab name, for example:
 
