@@ -1,6 +1,6 @@
 {
   "name": "opencode-zellij-status",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "OpenCode tab status and desktop notifications for Zellij",
   "type": "module",
   "main": "opencode-plugin/index.ts",

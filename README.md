@@ -2,6 +2,8 @@
 
 Small OpenCode V2 plugin that shows OpenCode status on the current Zellij tab and optionally sends macOS desktop notifications for attention-worthy events.
 
+**Compatibility:** OpenCode V2 only. This plugin uses the V2 plugin API and does not support OpenCode V1.
+
 The plugin listens for OpenCode session, permission, and form events (including agent questions). It renames the current Zellij tab with a small status suffix, using an idle marker so the tab label width stays stable as status changes.
 
 ## Install
