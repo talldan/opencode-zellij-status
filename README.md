@@ -1,16 +1,17 @@
 # opencode-zellij-status
 
-Small OpenCode plugin that shows OpenCode status on the current Zellij tab and optionally sends macOS desktop notifications for attention-worthy events.
+Small OpenCode V2 plugin that shows OpenCode status on the current Zellij tab and optionally sends macOS desktop notifications for attention-worthy events.
 
-The plugin listens for OpenCode session, permission, and question events. It renames the current Zellij tab with a small status suffix, using an idle marker so the tab label width stays stable as status changes.
+The plugin listens for OpenCode session, permission, and form events (including agent questions). It renames the current Zellij tab with a small status suffix, using an idle marker so the tab label width stays stable as status changes.
 
 ## Install
 
 Add the plugin to your OpenCode config:
 
-```json
+```jsonc
 {
-  "plugin": ["opencode-zellij-status"]
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["opencode-zellij-status"]
 }
 ```
 
@@ -25,14 +26,13 @@ The first version intentionally keeps the mapping small and quiet. These are the
 | OpenCode event | Tab suffix | Notification |
 | --- | --- | --- |
 | idle/default | `✓` | No |
-| `session.status` busy | `●` | No |
-| `session.status` retry | `…` | macOS only, if enabled |
-| `session.status` idle | `✓` | No |
+| `session.execution.started` | `●` | No |
+| `session.retry.scheduled` | `…` | macOS only, if enabled |
 | `session.idle` | `✓` | macOS only, if enabled |
-| `session.error` | `!` | macOS only, if enabled |
+| `session.execution.failed` | `!` | macOS only, if enabled |
 | `permission.asked` | `?` | macOS only, if enabled |
 | `permission.replied` | `✓` | No |
-| `question.asked` | `?` | macOS only, if enabled |
+| `form.created` | `?` | macOS only, if enabled |
 
 On each handled event, the plugin reads the current tab name from Zellij, strips any known status suffix (`✓`, `●`, `…`, `?`, `!`), and stores that base tab name in memory using the current Zellij session and tab ID. If the stripped tab name changes, for example after `sesh here` or a manual tab rename, the plugin treats the new name as authoritative. Idle status renames the tab back to that stored base name plus `✓`.
 
@@ -106,7 +106,7 @@ No custom Zellij WASM plugin is required.
 
 ## zjstatus
 
-`zjstatus` is recommended as the visual tab bar layer if you want a polished tab display, but it is not the status transport for v1. The plugin does not send `zjstatus::pipe::pipe_opencode` messages.
+`zjstatus` is recommended as the visual tab bar layer if you want a polished tab display, but this plugin updates the Zellij tab name directly. It does not send `zjstatus::pipe::pipe_opencode` messages.
 
 If you already use `zjstatus`, no special OpenCode pipe widget is needed. Make sure your tab format displays the tab name so the suffix is visible. A minimal tab-bar-oriented example:
 

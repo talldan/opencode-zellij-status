@@ -2,7 +2,11 @@
   "name": "opencode-zellij-status",
   "version": "0.2.1",
   "description": "OpenCode tab status and desktop notifications for Zellij",
+  "type": "module",
   "main": "opencode-plugin/index.ts",
+  "exports": {
+    ".": "./opencode-plugin/index.ts"
+  },
   "keywords": [
     "opencode",
     "opencode-plugin",
@@ -15,7 +19,7 @@
     "type": "git",
     "url": "git+https://github.com/talldan/opencode-zellij-status.git"
   },
-  "peerDependencies": {
-    "@opencode-ai/plugin": "*"
+  "dependencies": {
+    "@opencode/plugin": "latest"
   }
 }

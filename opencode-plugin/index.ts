@@ -1,4 +1,8 @@
-import type { Plugin } from "@opencode-ai/plugin"
+import { execFile } from "node:child_process"
+import { promisify } from "node:util"
+import { Plugin } from "@opencode/plugin"
+
+const execFileAsync = promisify(execFile)
 
 const MAX_MESSAGE_LENGTH = 160
 
@@ -129,28 +133,18 @@ const panesFromListOutput = (output: string): ZellijPaneInfo[] => {
   return []
 }
 
-const errorMessage = (event: { properties?: unknown }): string => {
-  const properties = event.properties as { error?: { data?: { message?: string }; message?: string } } | undefined
-  return clean(properties?.error?.data?.message ?? properties?.error?.message ?? "OpenCode error")
+const errorMessage = (error: { message?: string } | undefined): string =>
+  clean(error?.message ?? "OpenCode error")
+
+const permissionMessage = (action: string, resources: string[]): string => {
+  const patterns = resources.length ? ` (${resources.join(", ")})` : ""
+  return clean(`Permission requested: ${action}${patterns}`)
 }
 
-const permissionMessage = (event: { properties?: unknown }): string => {
-  const properties = event.properties as { permission?: string; patterns?: string[] } | undefined
-  const permission = properties?.permission ? `Permission requested: ${properties.permission}` : "Permission requested"
-  const patterns = properties?.patterns?.length ? ` (${properties.patterns.join(", ")})` : ""
-  return clean(`${permission}${patterns}`)
-}
+const questionMessage = (form: { title: string; fields: Array<{ title?: string; description?: string }> }): string =>
+  clean(form.title || form.fields[0]?.title || form.fields[0]?.description || "OpenCode question")
 
-const questionMessage = (event: { properties?: unknown }): string => {
-  const properties = event.properties as { questions?: Array<{ header?: string; question?: string }> } | undefined
-  const firstQuestion = properties?.questions?.[0]
-  return clean(firstQuestion?.header ?? firstQuestion?.question ?? "OpenCode question")
-}
-
-const retryMessage = (event: { properties?: unknown }): string => {
-  const properties = event.properties as { status?: { message?: string; attempt?: number } } | undefined
-  const attempt = properties?.status?.attempt
-  const message = properties?.status?.message ?? "OpenCode retrying"
+const retryMessage = (attempt: number, message: string): string => {
   return clean(attempt ? `Retrying (${attempt}): ${message}` : message)
 }
 
@@ -159,95 +153,116 @@ const idleMessage = (): string => clean("task complete")
 const withTabName = (tabName: string | undefined, message: string): string =>
   clean(tabName ? `${tabName}: ${message}` : message)
 
-const sessionStatusType = (event: { properties?: unknown }): string | undefined => {
-  const properties = event.properties as { status?: { type?: string } } | undefined
-  return properties?.status?.type
+const runCommand = async (command: string, args: string[]): Promise<string | undefined> => {
+  try {
+    const { stdout } = await execFileAsync(command, args, { encoding: "utf8" })
+    return stdout
+  } catch {
+    return undefined
+  }
 }
 
-export const ZellijStatusPlugin: Plugin = async ({ $ }) => {
-  const markers = statusMarkers()
+export default Plugin.define({
+  id: "opencode-zellij-status",
+  async setup(ctx) {
+    const markers = statusMarkers()
+    const controller = new AbortController()
 
-  const currentTab = async (): Promise<CurrentTabInfo | undefined> => {
-    const currentPaneID = process.env.ZELLIJ_PANE_ID
-    if (!currentPaneID) return undefined
+    const currentTab = async (): Promise<CurrentTabInfo | undefined> => {
+      const currentPaneID = process.env.ZELLIJ_PANE_ID
+      if (!currentPaneID) return undefined
 
-    const output = await $`zellij action list-panes --json --tab --command --state`.quiet().nothrow().text()
-    const pane = panesFromListOutput(output).find((candidate) =>
-      paneMatchesCurrentProcess(candidate, currentPaneID)
-    )
-    if (!pane) return undefined
+      const output = await runCommand("zellij", ["action", "list-panes", "--json", "--tab", "--command", "--state"])
+      if (output === undefined) return undefined
 
-    const id = tabID(pane)
-    const name = tabName(pane)
-    if (!id || !name) return undefined
+      const pane = panesFromListOutput(output).find((candidate) =>
+        paneMatchesCurrentProcess(candidate, currentPaneID)
+      )
+      if (!pane) return undefined
 
-    return { id, name }
-  }
+      const id = tabID(pane)
+      const name = tabName(pane)
+      if (!id || !name) return undefined
 
-  const renameCurrentTab = async (suffix: string): Promise<string | undefined> => {
-    const tab = await currentTab()
-    if (!tab) return undefined
+      return { id, name }
+    }
 
-    const currentBaseName = stripStatusSuffix(tab.name, markers)
-    const cacheKey = tabCacheKey(tab.id)
-    const cachedBaseName = baseTabNames.get(cacheKey)
-    const baseName = cachedBaseName === currentBaseName ? cachedBaseName : currentBaseName
-    baseTabNames.set(cacheKey, baseName)
+    const renameCurrentTab = async (suffix: string): Promise<string | undefined> => {
+      const tab = await currentTab()
+      if (!tab) return undefined
 
-    const nextName = tabNameWithSuffix(baseName, suffix)
-    if (tab.name === nextName) return baseName
+      const currentBaseName = stripStatusSuffix(tab.name, markers)
+      const cacheKey = tabCacheKey(tab.id)
+      const cachedBaseName = baseTabNames.get(cacheKey)
+      const baseName = cachedBaseName === currentBaseName ? cachedBaseName : currentBaseName
+      baseTabNames.set(cacheKey, baseName)
 
-    await $`zellij action rename-tab-by-id ${tab.id} ${nextName}`.quiet().nothrow()
-    return baseName
-  }
+      const nextName = tabNameWithSuffix(baseName, suffix)
+      if (tab.name === nextName) return baseName
 
-  const notifyDesktop = async (message: string): Promise<void> => {
-    if (!desktopNotificationsEnabled()) return
-    await $`osascript -e ${`display notification "${applescriptString(message)}" with title "OpenCode"`}`.quiet().nothrow()
-  }
+      await runCommand("zellij", ["action", "rename-tab-by-id", tab.id, nextName])
+      return baseName
+    }
 
-  return {
-    event: async ({ event }) => {
-      if (!inZellij()) return
+    const notifyDesktop = async (message: string): Promise<void> => {
+      if (!desktopNotificationsEnabled()) return
+      await runCommand("osascript", ["-e", `display notification "${applescriptString(message)}" with title "OpenCode"`])
+    }
 
-      const eventType = event.type as string
+    void (async () => {
+      for await (const event of ctx.event.subscribe({
+        types: [
+          "session.execution.started",
+          "session.retry.scheduled",
+          "session.idle",
+          "session.execution.failed",
+          "permission.asked",
+          "permission.replied",
+          "form.created",
+        ],
+        signal: controller.signal,
+      })) {
+        if (!inZellij()) continue
 
-      switch (eventType) {
-        case "session.status": {
-          const status = sessionStatusType(event)
-          if (status === "busy") {
+        switch (event.type) {
+          case "session.execution.started":
             await renameCurrentTab(markers.busy)
-          } else if (status === "idle") {
-            await renameCurrentTab(markers.idle)
-          } else if (status === "retry") {
+            break
+
+          case "session.retry.scheduled": {
             const tabName = await renameCurrentTab(markers.retry)
-            await notifyDesktop(withTabName(tabName, retryMessage(event)))
+            await notifyDesktop(withTabName(tabName, retryMessage(event.data.attempt, event.data.error.message)))
+            break
           }
-          break
+
+          case "session.idle":
+            await notifyDesktop(withTabName(await renameCurrentTab(markers.idle), idleMessage()))
+            break
+
+          case "session.execution.failed":
+            await notifyDesktop(withTabName(await renameCurrentTab(markers.error), errorMessage(event.data.error)))
+            break
+
+          case "permission.asked":
+            await notifyDesktop(withTabName(
+              await renameCurrentTab(markers.waiting),
+              permissionMessage(event.data.action, event.data.resources),
+            ))
+            break
+
+          case "permission.replied":
+            await renameCurrentTab(markers.idle)
+            break
+
+          case "form.created":
+            await notifyDesktop(withTabName(await renameCurrentTab(markers.waiting), questionMessage(event.data.form)))
+            break
         }
-
-        case "session.idle":
-          await notifyDesktop(withTabName(await renameCurrentTab(markers.idle), idleMessage()))
-          break
-
-        case "session.error":
-          await notifyDesktop(withTabName(await renameCurrentTab(markers.error), errorMessage(event)))
-          break
-
-        case "permission.asked":
-          await notifyDesktop(withTabName(await renameCurrentTab(markers.waiting), permissionMessage(event)))
-          break
-
-        case "permission.replied":
-          await renameCurrentTab(markers.idle)
-          break
-
-        case "question.asked":
-          await notifyDesktop(withTabName(await renameCurrentTab(markers.waiting), questionMessage(event)))
-          break
       }
-    },
-  }
-}
+    })().catch((error: unknown) => {
+      if (!controller.signal.aborted) console.error("OpenCode Zellij Status event subscription failed", error)
+    })
 
-export default ZellijStatusPlugin
+    return () => controller.abort()
+  },
+})
