@@ -215,6 +215,8 @@ export default Plugin.define({
 
     const initialRoute = context.ui.router.current()
     let selectedSessionID = initialRoute.type === "session" ? initialRoute.sessionID : undefined
+    let executionOutcome: "succeeded" | "interrupted" | "failed" | "cancelled" | undefined
+    let completionNotificationSent = false
 
     const currentSession = (sessionID: string): boolean => {
       if (!inZellij()) return false
@@ -227,15 +229,29 @@ export default Plugin.define({
       })
     }
 
+    const finishSession = (notify: boolean): void => {
+      handle(async () => {
+        const tabName = await renameCurrentTab(markers.idle)
+        if (notify) await notifyDesktop(withTabName(tabName, idleMessage()))
+      })
+    }
+
     const stopListening = [
       context.data.on("tui.session.select", (event) => {
+        if (selectedSessionID !== event.data.sessionID) {
+          executionOutcome = undefined
+          completionNotificationSent = false
+        }
         selectedSessionID = event.data.sessionID
         if (!inZellij()) return
         const marker = context.data.session.status(selectedSessionID) === "running" ? markers.busy : markers.idle
         handle(() => renameCurrentTab(marker))
       }),
       context.data.on("session.execution.started", (event) => {
-        if (currentSession(event.data.sessionID)) handle(() => renameCurrentTab(markers.busy))
+        if (!currentSession(event.data.sessionID)) return
+        executionOutcome = undefined
+        completionNotificationSent = false
+        handle(() => renameCurrentTab(markers.busy))
       }),
       context.data.on("session.retry.scheduled", (event) => {
         if (!currentSession(event.data.sessionID)) return
@@ -246,12 +262,26 @@ export default Plugin.define({
       }),
       context.data.on("session.idle", (event) => {
         if (!currentSession(event.data.sessionID)) return
-        handle(async () => {
-          await notifyDesktop(withTabName(await renameCurrentTab(markers.idle), idleMessage()))
-        })
+        if (executionOutcome === "failed") return
+        const notify = executionOutcome === undefined && !completionNotificationSent
+        if (notify) completionNotificationSent = true
+        finishSession(notify)
+      }),
+      context.data.on("session.execution.succeeded", (event) => {
+        if (!currentSession(event.data.sessionID)) return
+        executionOutcome = "succeeded"
+        const notify = !completionNotificationSent
+        if (notify) completionNotificationSent = true
+        finishSession(notify)
+      }),
+      context.data.on("session.execution.interrupted", (event) => {
+        if (!currentSession(event.data.sessionID)) return
+        executionOutcome = "interrupted"
+        handle(() => renameCurrentTab(markers.idle))
       }),
       context.data.on("session.execution.failed", (event) => {
         if (!currentSession(event.data.sessionID)) return
+        executionOutcome = "failed"
         handle(async () => {
           await notifyDesktop(withTabName(await renameCurrentTab(markers.error), errorMessage(event.data.error)))
         })
@@ -266,13 +296,25 @@ export default Plugin.define({
         })
       }),
       context.data.on("permission.replied", (event) => {
-        if (currentSession(event.data.sessionID)) handle(() => renameCurrentTab(markers.idle))
+        if (!currentSession(event.data.sessionID)) return
+        const marker = context.data.session.status(event.data.sessionID) === "running" ? markers.busy : markers.idle
+        handle(() => renameCurrentTab(marker))
       }),
       context.data.on("form.created", (event) => {
         if (!currentSession(event.data.form.sessionID)) return
         handle(async () => {
           await notifyDesktop(withTabName(await renameCurrentTab(markers.waiting), questionMessage(event.data.form)))
         })
+      }),
+      context.data.on("form.replied", (event) => {
+        if (!currentSession(event.data.sessionID)) return
+        const marker = context.data.session.status(event.data.sessionID) === "running" ? markers.busy : markers.idle
+        handle(() => renameCurrentTab(marker))
+      }),
+      context.data.on("form.cancelled", (event) => {
+        if (!currentSession(event.data.sessionID)) return
+        executionOutcome = "cancelled"
+        handle(() => renameCurrentTab(markers.idle))
       }),
     ]
 

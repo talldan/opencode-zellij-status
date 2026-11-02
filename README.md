@@ -32,11 +32,15 @@ The first version intentionally keeps the mapping small and quiet. These are the
 | idle/default | `✓` | No |
 | `session.execution.started` | `●` | No |
 | `session.retry.scheduled` | `…` | macOS only, if enabled |
-| `session.idle` | `✓` | macOS only, if enabled |
+| `session.execution.succeeded` | `✓` | macOS only, once per completion if enabled |
+| `session.idle` | `✓` | macOS only, if no explicit outcome event was received |
+| `session.execution.interrupted` | `✓` | No |
 | `session.execution.failed` | `!` | macOS only, if enabled |
 | `permission.asked` | `?` | macOS only, if enabled |
-| `permission.replied` | `✓` | No |
+| `permission.replied` | Current session state | No |
 | `form.created` | `?` | macOS only, if enabled |
+| `form.replied` | Current session state | No |
+| `form.cancelled` | `✓` | No |
 
 On each handled event, the plugin reads the current tab name from Zellij, strips any known status suffix (`✓`, `●`, `…`, `?`, `!`), and stores that base tab name in memory using the current Zellij session and tab ID. If the stripped tab name changes, for example after `sesh here` or a manual tab rename, the plugin treats the new name as authoritative. Idle status renames the tab back to that stored base name plus `✓`.
 
